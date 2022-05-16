@@ -1,0 +1,167 @@
+# -*- coding: utf-8 -*-
+"""Webex Bot that controls a Virtual Lamp
+   by  DJ Uittenbogaard - duittenb@cisco.com
+   version 0.4 - May 16th 2022
+____________________________________________
+Copyright (c) 2021 Cisco and/or its affiliates.
+This software is licensed to you under the terms of the Cisco Sample
+Code License, Version 1.1 (the "License"). You may obtain a copy of the
+License at  https://developer.cisco.com/docs/licenses
+All use of the material herein must be in accordance with the terms of
+the License. All rights not expressly granted by the License are
+reserved. Unless required by applicable law or agreed to separately in
+writing, software distributed under the License is distributed on an "AS
+IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express
+or implied.
+"""
+
+from flask import Flask, jsonify, request
+from webexteamssdk import WebexTeamsAPI
+import re
+import json
+import requests
+import os
+
+my_bot_token = "__YOUR_BOT_TOKEN_HERE__"
+#
+# alternatively: put your bot token in an ENVIRONMENT VARIABLE and use the line below:
+# my_bot_token = os.environ.get('MY_BOT_TOKEN')
+
+app = Flask(__name__)
+api = WebexTeamsAPI(access_token=my_bot_token)
+
+
+# __   __| |  __ _  _ __ ___   _ __
+# \ \ / /| | / _` || '_ ` _ \ | '_ \    API calls to
+#  \ V / | || (_| || | | | | || |_) |   the virtual
+#   \_/  |_| \__,_||_| |_| |_|| .__/    lamp
+#                             |_|
+def set_virtuallamp(lamp_id, action):
+    response = requests.request("GET", f"https://vlamp.nldj.com/api/{lamp_id}/{action}")
+    if response.status_code == 200:
+        new_status = json.loads(response.text)['lamp_state']
+    else:
+        print(f"**ERROR** code: {response.status_code}")
+        new_status = "error"
+    return response.status_code, new_status
+
+
+#                             _
+#  _ __    __ _  _ __   ___  | | __ Check for Ngrok
+# | '_ \  / _` || '__| / _ \ | |/ / tunnels and get
+# | | | || (_| || |   | (_) ||   <  the public_url
+# |_| |_| \__, ||_|    \___/ |_|\_\ (for webhook)
+#         |___/
+def check_ngrok():
+    try:
+        response = requests.request("GET", "http://127.0.0.1:4040/api/tunnels")
+        if response.status_code == 200:
+            # __ ngrok: get public_url & ensure it's using httpS
+            url_found = json.loads(response.text)['tunnels'][1]['public_url'].replace("http://", "https://")
+            return url_found
+        else:
+            return f"**ERROR** Checking Ngrok URL. Status code: {response.status_code}"
+    except Exception as e:
+        return f"**ERROR** Please start 'Ngrok http 4111' in another window"
+
+
+#                  _      _                    _
+# __      __  ___ | |__  | |__    ___    ___  | | __    CHECK all WHs
+# \ \ /\ / / / _ \| '_ \ | '_ \  / _ \  / _ \ | |/ /    and remove
+#  \ V  V / |  __/| |_) || | | || (_) || (_) ||   <     or create WHs
+#   \_/\_/   \___||_.__/ |_| |_| \___/  \___/ |_|\_\    when needed
+def check_webhooks(ngrok_url):
+    wh_result = api.webhooks.list()
+    wh_count = len(list(wh_result))
+    if wh_count > 0:
+        for wh in wh_result:
+            if wh.targetUrl == ngrok_url:
+                print(f"\n___ WEBHOOK: exists!\n")
+                continue
+            else:
+                api.webhooks.delete(webhookId=wh.id)
+                wh_count -= 1
+    if wh_count < 1:  # ___ ZERO webhooks --> create one
+        wh_result = api.webhooks.create(name="Virtual Lamp Bot webhook", targetUrl=ngrok_url, resource="messages", event="created")
+        print(f"\n___ WEBHOOK: created! --> \nold url {wh.targetUrl}\nnew url {ngrok_url}")
+        wh_count += 1
+    return wh_count
+
+
+#  _ __ ___    ___  ___  ___   __ _   __ _   ___  ___
+# | '_ ` _ \  / _ \/ __|/ __| / _` | / _` | / _ \/ __|  Process
+# | | | | | ||  __/\__ \\__ \| (_| || (_| ||  __/\__ \  Bot
+# |_| |_| |_| \___||___/|___/ \__,_| \__, | \___||___/  Messages
+#                                    |___/
+def process_messages(message_obj):
+    my_response = "> Unrecognized command. Say **_help_** to see available commands"
+    for token in message_obj.text.split():
+        token = re.sub(r'[^\w\s]', '', token).lower()  # remove "?!.-" from text
+
+        #__________ LAMP ON/OFF
+        if token in ['on', 'off', 'toggle', 'status']:
+            api_result, new_state = set_virtuallamp(my_lamp_id, token)
+            if api_result != 200:
+                if api_result == 404:
+                    api_result = "the lamp ID is not recognized"
+                my_response = f"> I had a problem controlling your lamp.\n ```{api_result}```"
+            else:
+                my_response = f"> Your lamp state is now: **{new_state}**"
+
+        #__________ GET LAMP LINK
+        elif token in ['url', 'link', 'mylamp', 'hyperlink']:
+            my_response = f"> You can view your lamp here:\n https://vlamp.nldj.com/{my_lamp_id}"
+
+        #__________ HELP
+        elif token in ['help', 'support', 'hulp', 'hi']:
+            my_response = my_helptext
+
+        #___ to add your own commands, copy the 2 lines above.
+
+    #___ send response
+    msg_result = api.messages.create(toPersonEmail=message_obj.personEmail, markdown=my_response)
+    return msg_result
+
+
+#  _                                 _
+# (_) _ __    ___   ___   _ __ ___  (_) _ __    __ _    Capture
+# | || '_ \  / __| / _ \ | '_ ` _ \ | || '_ \  / _` |   Incoming
+# | || | | || (__ | (_) || | | | | || || | | || (_| |   Webhooks
+# |_||_| |_| \___| \___/ |_| |_| |_||_||_| |_| \__, |
+@app.route('/', methods=["POST"])  # .         |___/
+def webhook():
+    json_payload = request.json                             # get the webhook json message:
+    message = api.messages.get(json_payload['data']['id'])  # read the message text
+    if "@webex.bot" in message.personEmail:                 # don't respond to my own messages
+        return ""
+    print(f"--- message TEXT: {message.text}   --- FROM: {message.personEmail}")
+    process_messages(message)
+    return jsonify({"success": True})
+
+
+#       _                 _
+#  ___ | |_   __ _  _ __ | |_   1. check ngrok
+# / __|| __| / _` || '__|| __|  2. check webhooks
+# \__ \| |_ | (_| || |   | |_   3. start server
+# |___/ \__| \__,_||_|    \__|
+my_lamp_id = "XXXXXXX"
+my_helptext = """# Virtual Lamp Bot Info\n> **on/off** - Turn your lamp on or off\n> **toggle** - Toggle lamp\n> **status** - Status of your virtual lamp\n> **link** - get link to Virtual lamp webpage\n> **help** - This message"""
+
+#___1 check if ngrok is running and what the public https URL is
+print("_________________________\n")
+ngrok_result = check_ngrok()
+if "**ERROR**" in ngrok_result:
+    print(f"\n {ngrok_result}\n")
+    exit()
+
+#___2 check webhooks, remove unnessecary ones and create one for the above ngrok public_url
+wh_result = check_webhooks(ngrok_result)
+if wh_result != 1:
+    print(f"\n**ERROR** problem with your webhooks ({wh_result})\n")
+    exit()
+
+#___3 run webserver
+app.run(host='0.0.0.0', port=4111, debug=True)
+print("")
+
+# big fonts: https://www.messletters.com/en/big-text/ (ogre)

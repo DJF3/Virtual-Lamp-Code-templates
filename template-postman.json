@@ -1,0 +1,124 @@
+{
+	"info": {
+		"_postman_id": "2c92d4b2-5dcd-47d2-89e7-08e426f6b34b",
+		"name": "Virtual Lamp API",
+		"description": "**Get a virtual lamp**\n\n Open your Webex client and say hi to `virtuallamp@webex.bot`\n",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"item": [
+		{
+			"name": "STATUS virtual lamp",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "https://vlamp.nldj.com/api/{{lamp_id}}",
+					"protocol": "https",
+					"host": [
+						"vlamp",
+						"nldj",
+						"com"
+					],
+					"path": [
+						"api",
+						"{{lamp_id}}"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "TOGGLE virtual lamp",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "https://vlamp.nldj.com/api/{{lamp_id}}/toggle",
+					"protocol": "https",
+					"host": [
+						"vlamp",
+						"nldj",
+						"com"
+					],
+					"path": [
+						"api",
+						"{{lamp_id}}",
+						"toggle"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Turn ON virtual lamp",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "https://vlamp.nldj.com/api/{{lamp_id}}/on",
+					"protocol": "https",
+					"host": [
+						"vlamp",
+						"nldj",
+						"com"
+					],
+					"path": [
+						"api",
+						"{{lamp_id}}",
+						"on"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Turn OFF virtual lamp",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "https://vlamp.nldj.com/api/{{lamp_id}}/off",
+					"protocol": "https",
+					"host": [
+						"vlamp",
+						"nldj",
+						"com"
+					],
+					"path": [
+						"api",
+						"{{lamp_id}}",
+						"off"
+					]
+				}
+			},
+			"response": []
+		}
+	],
+	"event": [
+		{
+			"listen": "prerequest",
+			"script": {
+				"type": "text/javascript",
+				"exec": [
+					""
+				]
+			}
+		},
+		{
+			"listen": "test",
+			"script": {
+				"type": "text/javascript",
+				"exec": [
+					""
+				]
+			}
+		}
+	],
+	"variable": [
+		{
+			"key": "lamp_id",
+			"value": "XXXXXXX",
+			"type": "string"
+		}
+	]
+}
